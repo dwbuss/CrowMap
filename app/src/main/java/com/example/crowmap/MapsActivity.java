@@ -1,8 +1,11 @@
 package com.example.crowmap;
 
+import android.content.Context;
 import android.content.pm.PackageManager;
-import android.graphics.Color;
+import android.graphics.Point;
 import android.location.Location;
+import android.location.LocationListener;
+import android.location.LocationManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
@@ -18,7 +21,8 @@ import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
-import com.google.android.gms.maps.model.CircleOptions;
+import com.google.android.gms.maps.model.BitmapDescriptorFactory;
+import com.google.android.gms.maps.model.CameraPosition;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.TileOverlayOptions;
@@ -39,10 +43,51 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 Build.VERSION.SDK_INT >= 23 && !checkPermission()) {
             requestPermission();
         }
-        SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
-                .findFragmentById(R.id.map);
-        mapFragment.getMapAsync(this);
+        ((SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map))
+                .getMapAsync(this);
+
+        ((LocationManager) this.getSystemService(Context.LOCATION_SERVICE))
+                .requestLocationUpdates(LocationManager.GPS_PROVIDER,
+                        1000,
+                        3,
+                        locationListenerGPS);
     }
+
+    LocationListener locationListenerGPS = new LocationListener() {
+        @Override
+        public void onLocationChanged(android.location.Location location) {
+            LatLng coordinate = new LatLng(location.getLatitude(),
+                    location.getLongitude());
+            Point mappoint = mMap.getProjection().toScreenLocation(coordinate);
+            mappoint.set(mappoint.x, mappoint.y - 300); // change these values as you need , just hard coded a value if you want you can give it based on a ratio like using DisplayMetrics  as well
+            mMap.animateCamera(CameraUpdateFactory.newLatLng(mMap.getProjection().fromScreenLocation(mappoint)));
+            if (location.hasBearing() && !mMap.isMyLocationEnabled()) {
+                CameraPosition cameraPosition = new CameraPosition.Builder()
+                        .target(coordinate)             // Sets the center of the map to current location
+                        .bearing(location.getBearing())// Sets the orientation of the camera to east
+                        .zoom(mMap.getCameraPosition().zoom)
+                        .tilt(0)// Sets the tilt of the camera to 0 degrees
+                        .build();                   // Creates a CameraPosition from the builder
+                mMap.animateCamera(CameraUpdateFactory.newCameraPosition(cameraPosition));
+            }
+        }
+
+        @Override
+        public void onStatusChanged(String provider, int status, Bundle extras) {
+
+        }
+
+        @Override
+        public void onProviderEnabled(String provider) {
+
+        }
+
+        @Override
+        public void onProviderDisabled(String provider) {
+
+        }
+    };
+
 
     private boolean checkPermission() {
         int result1 = ContextCompat.checkSelfPermission(this, android.Manifest.permission.READ_EXTERNAL_STORAGE);
@@ -78,8 +123,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     public void onMapReady(GoogleMap googleMap) {
         mMap = googleMap;
         File sdcard = new File("/mnt/sdcard/");
-        String fileName = "Crow.mbtiles";
-        File file = new File(sdcard, fileName);
+        File file = new File(sdcard, "Crow.mbtiles");
 
         if (!file.exists())
             Toast.makeText(this, "File not Found" + file.getAbsolutePath(), Toast.LENGTH_LONG).show();
@@ -89,42 +133,46 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
         TileProvider tileProvider = new ExpandedMBTilesTileProvider(file, 256, 256);
         mMap.addTileOverlay(new TileOverlayOptions().tileProvider(tileProvider));
-        float zoomLevel = (float) 12.0;
-        KmlLayer layer = null;
         try {
-            layer = new KmlLayer(mMap, R.raw.points, getApplicationContext());
-            layer.addLayerToMap();
+            new KmlLayer(mMap, R.raw.points, getApplicationContext()).addLayerToMap();
         } catch (Exception e) {
             e.printStackTrace();
         }
+        mMap.setMyLocationEnabled(true);
         mMap.getUiSettings().setAllGesturesEnabled(true);
         mMap.getUiSettings().setZoomControlsEnabled(true);
         mMap.getUiSettings().setZoomGesturesEnabled(true);
         mMap.getUiSettings().setMyLocationButtonEnabled(true);
+        mMap.getUiSettings().setCompassEnabled(true);
         mMap.setMapType(GoogleMap.MAP_TYPE_SATELLITE);
-        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(crow, zoomLevel));
-
+        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(crow, (float) 12.0));
         mMap.setOnMyLocationClickListener(onMyLocationClickListener);
-
-        mMap.setMyLocationEnabled(true);
+        mMap.setOnMapLongClickListener(onMyMapLongClickListener);
     }
+
+    private GoogleMap.OnMapLongClickListener onMyMapLongClickListener =
+            new GoogleMap.OnMapLongClickListener() {
+                @Override
+                public void onMapLongClick(LatLng latLng) {
+                    mMap.addMarker(new MarkerOptions()
+                            .position(latLng)
+                            .title("You are here")
+                            .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED)));
+                }
+            };
 
     private GoogleMap.OnMyLocationClickListener onMyLocationClickListener =
             new GoogleMap.OnMyLocationClickListener() {
                 @Override
                 public void onMyLocationClick(@NonNull Location location) {
-
-                    mMap.setMinZoomPreference(12);
-
-                    CircleOptions circleOptions = new CircleOptions();
-                    circleOptions.center(new LatLng(location.getLatitude(),
-                            location.getLongitude()));
-
-                    circleOptions.radius(200);
-                    circleOptions.fillColor(Color.RED);
-                    circleOptions.strokeWidth(6);
-
-                    mMap.addCircle(circleOptions);
+                    Toast.makeText(getApplicationContext(), "MyLocationClicked " + mMap.isMyLocationEnabled(), Toast.LENGTH_LONG).show();
+                    LatLng coordinate = new LatLng(location.getLatitude(),
+                            location.getLongitude());
+                    mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(coordinate, 15));
+                    if (mMap.isMyLocationEnabled())
+                        mMap.setMyLocationEnabled(false);
+                    else
+                        mMap.setMyLocationEnabled(true);
                 }
             };
 }
