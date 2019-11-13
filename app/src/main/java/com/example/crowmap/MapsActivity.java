@@ -165,14 +165,9 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             new GoogleMap.OnMyLocationClickListener() {
                 @Override
                 public void onMyLocationClick(@NonNull Location location) {
-                    Toast.makeText(getApplicationContext(), "MyLocationClicked " + mMap.isMyLocationEnabled(), Toast.LENGTH_LONG).show();
                     LatLng coordinate = new LatLng(location.getLatitude(),
                             location.getLongitude());
                     mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(coordinate, 15));
-                    if (mMap.isMyLocationEnabled())
-                        mMap.setMyLocationEnabled(false);
-                    else
-                        mMap.setMyLocationEnabled(true);
                 }
             };
 }
